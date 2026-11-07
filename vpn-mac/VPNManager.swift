@@ -91,6 +91,7 @@ final class VPNManager {
     /// Checks whether the running binary is signed with the paid Apple Developer
     /// `com.apple.developer.networking.networkextension` entitlement.
     var hasNetworkExtensionEntitlement: Bool {
+        #if os(macOS)
         guard let task = SecTaskCreateFromSelf(nil) else { return false }
         let key = "com.apple.developer.networking.networkextension" as CFString
         guard let value = SecTaskCopyValueForEntitlement(task, key, nil) else { return false }
@@ -98,6 +99,14 @@ final class VPNManager {
             return !array.isEmpty
         }
         return false
+        #else
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let content = String(data: data, encoding: .isoLatin1) else {
+            return false
+        }
+        return content.contains("com.apple.developer.networking.networkextension")
+        #endif
     }
 
     var isConnected: Bool {

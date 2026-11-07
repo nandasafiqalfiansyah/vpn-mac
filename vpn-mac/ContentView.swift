@@ -16,8 +16,12 @@ struct ContentView: View {
             }
             .padding(24)
         }
+        #if os(macOS)
         .frame(minWidth: 480, idealWidth: 520, minHeight: 620)
         .background(Color(nsColor: .windowBackgroundColor))
+        #else
+        .background(Color(uiColor: .systemGroupedBackground))
+        #endif
     }
 
     // MARK: - Header & Connect Button
@@ -177,7 +181,7 @@ struct ContentView: View {
                         .padding(10)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
+                                .fill(isSelected ? Color.accentColor.opacity(0.12) : cardBackgroundColor)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -318,6 +322,14 @@ struct ContentView: View {
     }
 
     // MARK: - Helpers
+    private var cardBackgroundColor: Color {
+        #if os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
     private var statusColor: Color {
         switch vpnManager.status {
         case .connected:

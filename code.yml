@@ -1,0 +1,112 @@
+name: Build macOS DMG & iOS IPA
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-macos-dmg:
+    name: Build macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode Version
+        run: xcodebuild -version
+
+      - name: Build macOS App (Release)
+        run: |
+          xcodebuild clean build \
+            -project vpn-mac.xcodeproj \
+            -scheme vpn-mac \
+            -configuration Release \
+            -sdk macosx \
+            -destination "generic/platform=macOS" \
+            -derivedDataPath build/DerivedDataMac \
+            MACOSX_DEPLOYMENT_TARGET=14.0 \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package into .dmg
+        run: |
+          APP_PATH="build/DerivedDataMac/Build/Products/Release/vpn-mac.app"
+          DMG_STAGING="build/dmg_staging"
+          DMG_OUTPUT="vpn-mac.dmg"
+
+          mkdir -p "$DMG_STAGING"
+          cp -R "$APP_PATH" "$DMG_STAGING/"
+          ln -s /Applications "$DMG_STAGING/Applications"
+
+          # Ad-hoc sign the app bundle so it runs cleanly on macOS
+          codesign --force --deep --sign - "$DMG_STAGING/vpn-mac.app"
+
+          hdiutil create \
+            -volname "MacVPN Tunnel" \
+            -srcfolder "$DMG_STAGING" \
+            -ov \
+            -format UDZO \
+            "$DMG_OUTPUT"
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn-mac-dmg
+          path: vpn-mac.dmg
+          if-no-files-found: error
+
+  build-ios-ipa:
+    name: Build iOS for iPhone (.ipa)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode Version
+        run: xcodebuild -version
+
+      - name: Build iOS App for iPhone (Release)
+        run: |
+          xcodebuild clean build \
+            -project vpn-mac.xcodeproj \
+            -scheme vpn-mac \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedDataIOS \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package into .ipa for iPhone
+        run: |
+          APP_PATH="build/DerivedDataIOS/Build/Products/Release-iphoneos/vpn-mac.app"
+          IPA_STAGING="build/ipa_staging"
+          IPA_OUTPUT="$GITHUB_WORKSPACE/vpn-ios.ipa"
+
+          mkdir -p "$IPA_STAGING/Payload"
+          cp -R "$APP_PATH" "$IPA_STAGING/Payload/"
+
+          # Ad-hoc sign the app bundle (compatible with Sideloadly / AltStore / SideStore / TrollStore)
+          codesign --force --deep --sign - "$IPA_STAGING/Payload/vpn-mac.app"
+
+          cd "$IPA_STAGING"
+          zip -r9 "$IPA_OUTPUT" Payload
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn-ios-ipa
+          path: vpn-ios.ipa
+          if-no-files-found: error
