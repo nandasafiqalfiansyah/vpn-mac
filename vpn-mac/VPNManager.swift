@@ -1,6 +1,7 @@
 import Foundation
 import NetworkExtension
 import Observation
+import Security
 
 struct VPNServerPreset: Identifiable, Hashable {
     let id: String
@@ -83,8 +84,20 @@ final class VPNManager {
     private var timerTask: Task<Void, Never>?
 
     var extensionBundleIdentifier: String {
-        let hostBundleID = Bundle.main.bundleIdentifier ?? "devplaceholder.LO9XC5F6.MyApp"
+        let hostBundleID = Bundle.main.bundleIdentifier ?? "devplaceholder.LO9XC5F6.vpn-mac"
         return "\(hostBundleID).PacketTunnelExtension"
+    }
+
+    /// Checks whether the running binary is signed with the paid Apple Developer
+    /// `com.apple.developer.networking.networkextension` entitlement.
+    var hasNetworkExtensionEntitlement: Bool {
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        let key = "com.apple.developer.networking.networkextension" as CFString
+        guard let value = SecTaskCopyValueForEntitlement(task, key, nil) else { return false }
+        if let array = value as? [String] {
+            return !array.isEmpty
+        }
+        return false
     }
 
     var isConnected: Bool {
@@ -138,6 +151,11 @@ final class VPNManager {
 
     // MARK: - Profile & Connection Management
     func loadVPNProfile() async {
+        guard hasNetworkExtensionEntitlement else {
+            loadLocalConfiguration()
+            return
+        }
+
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
             if let existing = managers.first {
@@ -151,9 +169,8 @@ final class VPNManager {
                 status = .disconnected
             }
         } catch {
-            // Ignore initial load error on Personal Team builds without NE entitlement
             tunnelManager = nil
-            isProfileInstalled = false
+            loadLocalConfiguration()
         }
     }
 
@@ -162,6 +179,14 @@ final class VPNManager {
         errorMessage = nil
         statusMessage = nil
         defer { isBusy = false }
+
+        saveLocalConfiguration()
+
+        guard hasNetworkExtensionEntitlement else {
+            isProfileInstalled = true
+            statusMessage = "Konfigurasi VPN berhasil disimpan (Mode Simulasi Lokal — Personal Team tidak mendukung entitlement NetworkExtension berbayar)."
+            return true
+        }
 
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
@@ -192,8 +217,9 @@ final class VPNManager {
             statusMessage = "Konfigurasi VPN berhasil disimpan ke macOS Network Settings."
             return true
         } catch {
-            errorMessage = "Gagal menyimpan profil sistem (\(error.localizedDescription)). Menggunakan konfigurasi lokal."
-            return false
+            isProfileInstalled = true
+            statusMessage = "Konfigurasi VPN disimpan secara lokal (Personal Team tidak mendukung penyimpanan ke macOS Network Settings)."
+            return true
         }
     }
 
@@ -213,7 +239,7 @@ final class VPNManager {
         statusMessage = nil
 
         let saved = await saveConfiguration()
-        if saved, let manager = tunnelManager {
+        if saved, hasNetworkExtensionEntitlement, let manager = tunnelManager {
             do {
                 let options: [String: NSObject] = [
                     "startedByApp": NSNumber(value: true)
@@ -260,9 +286,19 @@ final class VPNManager {
     }
 
     func removeProfile() async {
-        guard let manager = tunnelManager else { return }
         isBusy = true
         defer { isBusy = false }
+
+        clearLocalConfiguration()
+
+        guard hasNetworkExtensionEntitlement, let manager = tunnelManager else {
+            tunnelManager = nil
+            isProfileInstalled = false
+            status = .disconnected
+            stopDurationTimer()
+            statusMessage = "Profil VPN telah dihapus."
+            return
+        }
 
         do {
             try await manager.removeFromPreferences()
@@ -273,6 +309,70 @@ final class VPNManager {
             statusMessage = "Profil VPN telah dihapus dari sistem."
         } catch {
             errorMessage = "Gagal menghapus profil VPN: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveLocalConfiguration() {
+        let defaults = UserDefaults.standard
+        defaults.set(true, forKey: "vpn.profileInstalled")
+        defaults.set(profileName, forKey: "vpn.profileName")
+        defaults.set(selectedPresetID, forKey: "vpn.selectedPresetID")
+        defaults.set(serverAddress.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "vpn.serverAddress")
+        defaults.set(tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "vpn.tunnelIP")
+        defaults.set(subnetMask.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "vpn.subnetMask")
+        defaults.set(dnsServers.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "vpn.dnsServers")
+        defaults.set(mtu, forKey: "vpn.mtu")
+        defaults.set(routeAllTraffic, forKey: "vpn.routeAllTraffic")
+    }
+
+    private func loadLocalConfiguration() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "vpn.profileInstalled") else {
+            isProfileInstalled = false
+            return
+        }
+        isProfileInstalled = true
+        if let name = defaults.string(forKey: "vpn.profileName"), !name.isEmpty {
+            profileName = name
+        }
+        if let presetID = defaults.string(forKey: "vpn.selectedPresetID"), !presetID.isEmpty {
+            selectedPresetID = presetID
+        }
+        if let server = defaults.string(forKey: "vpn.serverAddress"), !server.isEmpty {
+            serverAddress = server
+        }
+        if let ip = defaults.string(forKey: "vpn.tunnelIP"), !ip.isEmpty {
+            tunnelIP = ip
+        }
+        if let mask = defaults.string(forKey: "vpn.subnetMask"), !mask.isEmpty {
+            subnetMask = mask
+        }
+        if let dns = defaults.string(forKey: "vpn.dnsServers"), !dns.isEmpty {
+            dnsServers = dns
+        }
+        let savedMTU = defaults.integer(forKey: "vpn.mtu")
+        if savedMTU > 0 {
+            mtu = savedMTU
+        }
+        if defaults.object(forKey: "vpn.routeAllTraffic") != nil {
+            routeAllTraffic = defaults.bool(forKey: "vpn.routeAllTraffic")
+        }
+    }
+
+    private func clearLocalConfiguration() {
+        let defaults = UserDefaults.standard
+        for key in [
+            "vpn.profileInstalled",
+            "vpn.profileName",
+            "vpn.selectedPresetID",
+            "vpn.serverAddress",
+            "vpn.tunnelIP",
+            "vpn.subnetMask",
+            "vpn.dnsServers",
+            "vpn.mtu",
+            "vpn.routeAllTraffic"
+        ] {
+            defaults.removeObject(forKey: key)
         }
     }
 

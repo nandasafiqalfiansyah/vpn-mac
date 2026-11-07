@@ -358,7 +358,6 @@
 		000000000000000111000000 /* Debug configuration for PBXNativeTarget "vpn-mac" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RUGR5FQB4K;
@@ -398,7 +397,6 @@
 		000000000000000112000000 /* Release configuration for PBXNativeTarget "vpn-mac" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RUGR5FQB4K;
@@ -438,7 +436,6 @@
 		B83EC4AB309E319B00DBBA56 /* Debug configuration for PBXNativeTarget "PacketTunnelExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RUGR5FQB4K;
@@ -454,7 +451,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = devplaceholder.LO9XC5F6.MyApp.PacketTunnelExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = "devplaceholder.LO9XC5F6.vpn-mac.PacketTunnelExtension";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -469,7 +466,6 @@
 		B83EC4AC309E319B00DBBA56 /* Release configuration for PBXNativeTarget "PacketTunnelExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RUGR5FQB4K;
@@ -485,7 +481,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = devplaceholder.LO9XC5F6.MyApp.PacketTunnelExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = "devplaceholder.LO9XC5F6.vpn-mac.PacketTunnelExtension";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
